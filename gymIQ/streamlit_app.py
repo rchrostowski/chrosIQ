@@ -16,6 +16,30 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------------------------
+# Access Code Gate
+# ------------------------------------------------------------------------------
+
+st.markdown("### 🔐 Secure Access")
+
+# You control these codes (one per gym, per region, etc.)
+VALID_CODES = {
+    "GYMIQ-TEST",   # your internal test code
+    "GYMIQ-001",
+    "GYMIQ-002",
+    "GYMIQ-003",
+    # add new codes here as you onboard gyms
+}
+
+code = st.text_input("Enter your gymIQ Access Code", type="password")
+
+if code not in VALID_CODES:
+    st.warning("Please enter a valid access code to continue.")
+    st.stop()
+
+st.success("Access granted.")
+st.divider()
+
+# ------------------------------------------------------------------------------
 # Header & onboarding
 # ------------------------------------------------------------------------------
 
@@ -752,3 +776,4 @@ Your information belongs entirely to **you** — gymIQ simply analyzes it to gen
 """
 )
 st.caption("gymIQ – Retail intelligence for modern gyms.")
+
