@@ -83,7 +83,7 @@ st.markdown(
    - **Discounts** (optional) – quantity discount levels per SKU  
 3. (Optional) Upload an extra CSV of **online orders** (DoorDash, UberEats, etc.)  
 4. Upload the Excel file into barIQ  
-5. Review the **Recommended Order** and **Clean Order / PO PDFs** per vendor
+5. Review the **Historical Insights**, **Recommended Order**, and **Clean Order / PO PDFs** per vendor
 """
 )
 
@@ -640,10 +640,11 @@ if recs is None or recs.empty:
 # Tabs
 # ------------------------------------------------------------------------------
 
-tab_order, tab_health, tab_sku, tab_vendor, tab_report = st.tabs(
+tab_order, tab_health, tab_history, tab_sku, tab_vendor, tab_report = st.tabs(
     [
         "📦 Recommended Order",
         "📊 Inventory Health",
+        "📜 Historical Insights",
         "🔍 SKU Explorer",
         "🏷️ Vendor Summary",
         "🧾 Clean Order / POs",
@@ -847,7 +848,166 @@ with tab_health:
             )
 
 # ------------------------------------------------------------------------------
-# TAB 3 – SKU Explorer
+# TAB 3 – Historical Insights
+# ------------------------------------------------------------------------------
+
+with tab_history:
+    st.subheader("📜 Historical Insights")
+
+    st.markdown(
+        """
+This tab looks **backward** at your data so you can sanity-check:
+
+- How your bar has actually been performing  
+- Which products drive most of your revenue  
+- Which products are slow + overstocked based on recent sales  
+"""
+    )
+
+    # Choose history window (independent from forecast lookback if you want)
+    max_date = sales_df["date"].max()
+    min_date = sales_df["date"].min()
+    default_days = min(30, (max_date - min_date).days + 1)
+
+    hist_days = st.slider(
+        "How many days of history to review?",
+        min_value=7,
+        max_value=min(120, (max_date - min_date).days + 1),
+        value=default_days,
+    )
+
+    hist_cutoff = max_date - pd.Timedelta(days=hist_days - 1)
+    sales_hist = sales_df[sales_df["date"].between(hist_cutoff, max_date)].copy()
+
+    if sales_hist.empty:
+        st.info("No sales data available in that window. Try increasing the number of days.")
+    else:
+        # Overall metrics
+        sales_hist["revenue"] = sales_hist["qty_sold"] * sales_hist["unit_price"]
+        daily = (
+            sales_hist.groupby("date")
+            .agg(total_units=("qty_sold", "sum"), total_revenue=("revenue", "sum"))
+            .reset_index()
+            .sort_values("date")
+        )
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total units sold", f"{daily['total_units'].sum():,.0f}")
+        c2.metric("Total revenue", f"${daily['total_revenue'].sum():,.2f}")
+        c3.metric(
+            "Avg daily revenue",
+            f"${daily['total_revenue'].mean():,.2f}",
+        )
+
+        st.markdown("#### Daily revenue trend")
+        daily_chart = daily.set_index("date")[["total_revenue"]]
+        st.line_chart(daily_chart)
+
+        st.markdown("#### Top products in this period")
+
+        sku_perf = (
+            sales_hist.groupby(["sku", "product_name"], as_index=False)
+            .agg(
+                units_sold=("qty_sold", "sum"),
+                revenue=("revenue", "sum"),
+            )
+        )
+
+        # Bring in category/vendor from products
+        sku_perf = sku_perf.merge(
+            products_df[["sku", "category", "vendor"]],
+            on="sku",
+            how="left",
+        )
+
+        top_choice = st.radio(
+            "View ranking by:",
+            ["Revenue", "Units sold"],
+            horizontal=True,
+        )
+
+        if top_choice == "Revenue":
+            top_df = sku_perf.sort_values("revenue", ascending=False).head(15)
+        else:
+            top_df = sku_perf.sort_values("units_sold", ascending=False).head(15)
+
+        st.dataframe(
+            top_df.rename(
+                columns={
+                    "sku": "SKU",
+                    "product_name": "Product",
+                    "category": "Category",
+                    "vendor": "Vendor",
+                    "units_sold": "Units sold",
+                    "revenue": "Revenue ($)",
+                }
+            ).style.format(
+                {
+                    "Units sold": "{:.0f}",
+                    "Revenue ($)": "${:,.2f}",
+                }
+            ),
+            use_container_width=True,
+            height=400,
+        )
+
+        st.markdown("#### Slow movers and overstock (based on recent demand)")
+
+        # Use recs to estimate days on hand
+        slow_view = recs.copy()
+        slow_view["avg_daily_demand_safe"] = slow_view["avg_daily_demand"].replace(0, np.nan)
+        slow_view["est_days_on_hand"] = slow_view["on_hand_qty"] / slow_view["avg_daily_demand_safe"]
+        # define slow + overstock: low demand but lots of days on hand
+        mask_slow_overstock = (
+            (slow_view["avg_daily_demand"] > 0) &
+            (slow_view["avg_daily_demand"] < 3) &
+            (slow_view["est_days_on_hand"] > 30)
+        )
+        slow_overstock = slow_view[mask_slow_overstock].copy()
+
+        if slow_overstock.empty:
+            st.info("No clear slow + overstocked items based on recent data.")
+        else:
+            slow_overstock = slow_overstock.sort_values(
+                "est_days_on_hand", ascending=False
+            ).head(20)
+
+            st.dataframe(
+                slow_overstock[
+                    [
+                        "sku",
+                        "brand",
+                        "product_name",
+                        "category",
+                        "vendor",
+                        "on_hand_qty",
+                        "avg_daily_demand",
+                        "est_days_on_hand",
+                    ]
+                ].rename(
+                    columns={
+                        "sku": "SKU",
+                        "brand": "Brand",
+                        "product_name": "Product",
+                        "category": "Category",
+                        "vendor": "Vendor",
+                        "on_hand_qty": "On hand (units)",
+                        "avg_daily_demand": "Avg daily sales (units)",
+                        "est_days_on_hand": "Est. days on hand",
+                    }
+                ).style.format(
+                    {
+                        "On hand (units)": "{:.0f}",
+                        "Avg daily sales (units)": "{:.2f}",
+                        "Est. days on hand": "{:.1f}",
+                    }
+                ),
+                use_container_width=True,
+                height=450,
+            )
+
+# ------------------------------------------------------------------------------
+# TAB 4 – SKU Explorer
 # ------------------------------------------------------------------------------
 
 with tab_sku:
@@ -893,7 +1053,7 @@ with tab_sku:
         st.line_chart(sku_sales["qty_sold"])
 
 # ------------------------------------------------------------------------------
-# TAB 4 – Vendor Summary
+# TAB 5 – Vendor Summary
 # ------------------------------------------------------------------------------
 
 with tab_vendor:
@@ -940,7 +1100,7 @@ with tab_vendor:
     )
 
 # ------------------------------------------------------------------------------
-# TAB 5 – Clean Order / POs (with PDF)
+# TAB 6 – Clean Order / POs (with PDF)
 # ------------------------------------------------------------------------------
 
 def generate_po_pdf(vendor_name: str, order_df: pd.DataFrame) -> bytes:
@@ -1141,3 +1301,4 @@ Your information belongs entirely to **you** — barIQ simply analyzes it to gen
 """
 )
 st.caption("barIQ – Inventory intelligence for modern bars and restaurants.")
+
