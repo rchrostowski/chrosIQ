@@ -1,0 +1,14 @@
+
+---
+
+## 🎨 4) `.streamlit/config.toml` (Optional Theme to Match Gym Vibes)
+
+Create the folder `.streamlit` in the repo and add `config.toml`:
+
+```toml
+[theme]
+primaryColor = "#22c55e"
+backgroundColor = "#050816"
+secondaryBackgroundColor = "#111827"
+textColor = "#f9fafb"
+font = "sans serif"
