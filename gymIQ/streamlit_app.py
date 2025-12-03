@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 # ---- Access code gate ----
-ACCESS_CODE = "GYM-TEST"     # change for real gym owners
+ACCESS_CODE = "GYMIQ-TEST"     # change for real gym owners
 
 # ---- Data file path ----
 DATA_PATH = Path("data/gymIQ_sample.csv")
