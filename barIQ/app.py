@@ -788,28 +788,3 @@ def page_inventory_forecast(metrics: pd.DataFrame):
 
     status_filter = st.multiselect(
 
-# ------------------------------------------------------------------------------
-# Footer – Privacy
-# ------------------------------------------------------------------------------
-
-st.divider()
-st.markdown(
-    """
-### 🔐 Privacy & Data
-
-Your data is **100% private**.
-
-barIQ does **not** store, save, log, transmit, share, or sell any of your data — ever.
-
-Your Excel file (and any online orders CSV) are processed only while this app is open.
-Once you close or refresh, the data is gone.
-
-We cannot see your sales numbers.  
-We cannot see your inventory.  
-We cannot see your product file.  
-
-Your information belongs entirely to **you** — barIQ simply analyzes it to generate smarter order recommendations.
-"""
-)
-st.caption("barIQ – Inventory intelligence for modern bars and restaurants.")
-
