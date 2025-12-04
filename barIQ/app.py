@@ -783,8 +783,74 @@ def page_inventory_forecast(metrics: pd.DataFrame):
     st.subheader("Inventory Forecast & Risk")
     st.caption(
         "This view turns recent sales into a forward-looking forecast. "
-        "Use it to see which beers, wines, cocktails, and food items are at risk of running out or are overstocked."
+        "Use it to see which beers, wines, cocktails, and food items are at risk of "
+        "running out or are overstocked."
     )
 
+    # Filters
     status_filter = st.multiselect(
+        "Filter by Status",
+        options=[
+            "🔥 Stockout Risk",
+            "🟡 Low Inventory",
+            "🔵 Overstock",
+            "✅ Healthy",
+        ],
+        default=[
+            "🔥 Stockout Risk",
+            "🟡 Low Inventory",
+        ],
+    )
+
+    cat_options = sorted(metrics[CAT_COL].dropna().unique())
+    cat_filter = st.multiselect(
+        "Filter by Category",
+        options=cat_options,
+        default=[],
+    )
+
+    abc_filter = st.multiselect(
+        "Filter by ABC Class",
+        options=["A", "B", "C"],
+        default=["A", "B", "C"],
+    )
+
+    df_view = metrics.copy()
+
+    if status_filter:
+        df_view = df_view[df_view["status"].isin(status_filter)]
+    if cat_filter:
+        df_view = df_view[df_view[CAT_COL].isin(cat_filter)]
+    if abc_filter:
+        df_view = df_view[df_view["abc_class"].isin(abc_filter)]
+
+    if df_view.empty:
+        st.success("No SKUs match these filters – that might actually be good news 😄")
+        return
+
+    df_view = df_view[
+        [
+            SKU_COL,
+            NAME_COL,
+            CAT_COL,
+            SUPPLIER_COL,
+            "status",
+            "abc_class",
+            "avg_daily_units",
+            "current_inventory",
+            "forecast_demand",
+            "weeks_on_hand",
+            "recommended_order_qty",
+            "inventory_value",
+        ]
+    ].sort_values(["status", "weeks_on_hand"])
+
+    st.dataframe(df_view, use_container_width=True)
+
+    st.caption(
+        "• Avg daily units: average units sold per day over the history window.\n"
+        "• Weeks on hand: how long current inventory will last at that pace.\n"
+        "• Recommended order qty: what BarIQ suggests ordering to get back to a safe level."
+    )
+
 
